@@ -1,0 +1,86 @@
+---
+title: Forecasting Dow Jones Industrial Average Monthly Excess Return
+author: "Zheyuan Fan"
+date: "07/04/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Introduction
+\
+In this report, I am interested in forecasting the monthly excess return of March and April 2020 as accurately as possible using different time series models. After identifying the data as smooth time series, I used two time series models, ARIMA (parameter determination by pacf and acf) and holt-winter model. Then I computed the AIC values, and showed Q-Q plots to check whether the residuals are normally distributed. I also used box.test to check whether the residuals were white noise. Finally, based on the above, the best model was confirmed as the ARIMA(2, 0, 2) model, thus I forecasted the monthly excess return of March and April based on this model. The exact procedure is described below. 
+
+# Procedures
+\
+First, load the data into R and generate dependent variable, the monthly excess return.
+```{r data}
+library(forecast)
+data <- read.csv("/Users/6ixlegend/Desktop/STA457/^DJI.csv")
+data$MER <-(data$Close-data$Open)/data$Open
+data <- data[,c(8)]
+```
+\
+Define the time series data using the ts() function and generate the ACF and PACF plots.
+```{r plots}
+myseries <- ts(data,frequency =12, start = c(2000,1),end = c(2020,2))
+str(myseries)
+plot(myseries,type="l",xlab="Time",ylab="Monthly Excess Return")
+acf(myseries)
+pacf(myseries)
+```
+\
+Then confirm that the data is actually stationary, the result below shows that no differences are required to make the time series stationary.
+```{r stationary-checking}
+ndiffs(myseries)
+```
+\
+Now fit two ARIMA models, one with parameters (2, 0, 1) and the other with parameters (2, 0, 2). We choose such parameters because we see that the sample ACF cuts off after lag 1.5. (Note that ARIMA(p, 0, q) is actully ARMA(p, q) because no differencing processing is required, thus I am essentially fitting ARMA(2, 1) model). We see AIC for model1 is -852.23 and AIC for model2 is -857.72. model2 has a smaller AIC so it can be considered as a reasonably better model.
+```{r ARIMA model}
+model1<-arima(myseries,order=c(2,0,1),method="ML")
+model1
+model2<-arima(myseries,order=c(2,0,2),method="ML")
+model2
+```
+\
+These results below shows the accuracies of the two model.
+```{r ARIMA accuracy}
+accuracy(model1)
+accuracy(model2)
+```
+\
+Now testing whether the residuals of the model are white noise by using the command Box.test(), we see that some residuals are not normally distributed, but most of them are on the straight line. The p-value of the Ljung-Box Test is 0.9757, which is larger than 0.05. Fxing significance level at 5%, we fail to reject the null hypothesis that the model residuals are white noise. So we can say that the residuals are white noise.
+```{r QQ plot and Ljung-Box Test ARIMA}
+qqnorm(model1$residuals)
+qqline(model1$residuals)
+Box.test(model1$residuals,type="Ljung-Box")
+```
+\
+Now fit another model Holt-Winters. Here, stl( ) function decomposes the time series into seasonal, trend and irregular components using loess. The Holt-Winters model Holtfit is constructed by the ets() function. We see the model has an AIC value of -192.1588.
+```{r Holt-Winters}
+holt<-stl(myseries,s.window="period")
+plot(holt)
+holtfit <- ets(myseries, model = "AAA")
+holtfit
+accuracy(holtfit)
+```
+\
+Now testing whether the residuals of the model are white noise by using the command Box.test(), we see that most points are on the straight line, which is a good indication of normally distuibuted residuals. Meanwhile, the Ljung-Box Test gives a p-value of 0.9553, which is larger than 0.05, Fxing significance level at 5%, we fail to reject the null hypothesis that the model residuals are white noise. So we can say that the residuals are white noise.
+```{r QQ plot and Ljung-Box Test Holt-Winters}
+qqnorm(holtfit$residuals)
+qqline(holtfit$residuals)
+Box.test(holtfit$residuals,type="Ljung-Box")
+```
+\
+Finally, based on the above analysis, the ARIMA(2, 0, 2) model seems to be a better fit, because it has the lowest AIC. Therefore, I forecast the monthly excess return of March and April 2020 based on this model. The predicted point estimates are shown as two blue points in the plot, their corresponding confidence intervals are included as well. Based on this prediction, the predicted excess return for March 2020 is 0.002845780, with a 95% confidence interval of (-0.08701194, 0.09270351), the predicted excess return for April 2020 is 0.008486569, with a 95% confidence interval of (-0.08137392, 0.09834705).
+```{r prediction}
+p1<-forecast(model2,h=2,level=c(97.5))
+p1
+plot(p1)
+```
+\
+\
+\
+# Appendix 
+The data was downloarded at finance.yahoo.com .\
+“Dow Jones Industrial Average (^DJI) Historical Data.” Yahoo! Finance, Yahoo!, 6 Apr. 2020, finance.yahoo.com/quote/^DJI/history?p=^DJI. 
